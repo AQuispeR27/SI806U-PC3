@@ -71,7 +71,6 @@ PC3-SI806U/
 - `roles` y `permisos` - Control de acceso
 - `sesiones` - Tokens activos
 - `logs_autenticacion` - Auditoría
-- `rate_limiting` - Prevención de fuerza bruta
 - `clientes`, `comercios`, `transacciones`, etc.
 
 📄 Ver: [`2-arquitectura-datos/ARQUITECTURA_DATOS.md`](2-arquitectura-datos/ARQUITECTURA_DATOS.md)
@@ -88,7 +87,6 @@ Tablas utilizadas:
 3. `permisos` → Obtener permisos
 4. `sesiones` → Crear sesión activa
 5. `logs_autenticacion` → Auditoría
-6. `rate_limiting` → Control de intentos
 
 📄 Ver: [`3-arquitectura-servicios/ARQUITECTURA_SERVICIOS.md`](3-arquitectura-servicios/ARQUITECTURA_SERVICIOS.md)
 

@@ -1,8 +1,4 @@
 # 3. Arquitectura de Servicios - Login Culqui
-
-## Nota Importante
-En este contexto, "servicios" NO se refiere a microservicios o APIs separadas, sino a **los datos y tablas necesarias** para implementar la funcionalidad de login y cómo se utilizan.
-
 ---
 
 ## Tablas Necesarias para el Login
@@ -211,69 +207,13 @@ INSERT INTO logs_autenticacion (
     '{"razon": "credenciales_invalidas", "email_intentado": "usuario@ejemplo.com"}'
 );
 ```
-
----
-
-### 7. RATE_LIMITING
-**Propósito:** Prevenir ataques de fuerza bruta limitando intentos.
-
-**Campos utilizados:**
-```sql
-- identificador     → Email o IP
-- tipo              → 'ip' o 'usuario'
-- intentos          → Cantidad de intentos fallidos
-- ventana_inicio    → Cuándo empezó a contar
-- bloqueado_hasta   → Hasta cuándo está bloqueado
-```
-
-**Uso en el proceso de autenticación:**
-1. **ANTES** de validar credenciales, verificar rate limiting
-2. Si hay bloqueo activo, rechazar el intento inmediatamente
-3. Si login falla, incrementar contador de intentos
-4. Si excede límite, bloquear temporalmente
-
-**Lógica de verificación:**
-```sql
--- Verificar si la IP está bloqueada
-SELECT
-    bloqueado_hasta
-FROM rate_limiting
-WHERE identificador = '192.168.1.1'
-AND tipo = 'ip'
-AND bloqueado_hasta > NOW();
-
--- Si hay resultado, el usuario está bloqueado
-```
-
-**Incrementar intentos fallidos:**
-```sql
-INSERT INTO rate_limiting (
-    identificador,
-    tipo,
-    intentos,
-    ventana_inicio
-) VALUES (
-    'usuario@ejemplo.com',
-    'usuario',
-    1,
-    NOW()
-) ON DUPLICATE KEY UPDATE
-    intentos = intentos + 1,
-    bloqueado_hasta = CASE
-        WHEN intentos + 1 >= 3 THEN DATE_ADD(NOW(), INTERVAL 15 MINUTE)
-        ELSE bloqueado_hasta
-    END;
-```
-
----
-
 ## Flujo de Datos en el Proceso de Login
 
 ### Paso 1: Validación Inicial
 ```
 INPUT: { email, password }
   ↓
-CHECK: rate_limiting
+CHECK
   ↓ (si no está bloqueado)
 QUERY: usuarios WHERE email = ?
 ```
@@ -298,7 +238,7 @@ BUILD: Array de roles y permisos
 
 ### Paso 4: Crear Sesión
 ```
-GENERATE: JWT token
+GENERATE: token
   ↓
 INSERT: sesiones (token, refresh_token, etc.)
   ↓
@@ -320,14 +260,7 @@ RETURN: {
 
 ### Query Principal de Autenticación
 ```sql
--- 1. Verificar rate limiting
-SELECT bloqueado_hasta
-FROM rate_limiting
-WHERE (identificador = ? AND tipo = 'usuario')
-   OR (identificador = ? AND tipo = 'ip')
-AND bloqueado_hasta > NOW();
-
--- 2. Obtener datos del usuario
+-- 1. Obtener datos del usuario
 SELECT
     u.id,
     u.email,
@@ -347,22 +280,18 @@ WHERE u.email = ?
 AND u.estado = 'activo'
 GROUP BY u.id;
 
--- 3. Crear sesión
+-- 2. Crear sesión
 INSERT INTO sesiones (
     usuario_id, token, refresh_token,
     ip_address, user_agent, dispositivo_tipo,
     fecha_expiracion
 ) VALUES (?, ?, ?, ?, ?, ?, ?);
 
--- 4. Registrar log de autenticación
+-- 3. Registrar log de autenticación
 INSERT INTO logs_autenticacion (
     usuario_id, evento, resultado,
     ip_address, user_agent, ubicacion, detalles
 ) VALUES (?, 'login', 'exito', ?, ?, ?, ?);
-
--- 5. Resetear rate limiting si login exitoso
-DELETE FROM rate_limiting
-WHERE identificador = ? AND tipo = 'usuario';
 ```
 
 ---
@@ -404,7 +333,6 @@ WHERE identificador = ? AND tipo = 'usuario';
 | **permisos** | ✓ | - | Detalles de permisos |
 | **sesiones** | - | ✓ | Crear sesión activa |
 | **logs_autenticacion** | - | ✓ | Auditoría de login |
-| **rate_limiting** | ✓ | ✓ | Prevenir fuerza bruta |
 
 ---
 
@@ -420,8 +348,6 @@ INDEX idx_estado (estado);
 INDEX idx_usuario_activa (usuario_id, activa);
 INDEX idx_token (token);
 
--- En tabla rate_limiting
-UNIQUE INDEX idx_identificador_tipo (identificador, tipo);
 ```
 
 ### 2. Caché (Recomendado)
@@ -438,20 +364,7 @@ CREATE PROCEDURE sp_login(
 )
 BEGIN
     DECLARE v_bloqueado BOOLEAN;
-
-    -- Verificar bloqueo
-    SELECT COUNT(*) > 0 INTO v_bloqueado
-    FROM rate_limiting
-    WHERE identificador IN (p_email, p_ip)
-    AND bloqueado_hasta > NOW();
-
-    IF v_bloqueado THEN
-        SELECT 'BLOQUEADO' as resultado;
-    ELSE
-        -- Retornar datos de usuario
-        SELECT * FROM usuarios WHERE email = p_email;
-    END IF;
-END//
+    //
 DELIMITER ;
 ```
 
@@ -459,75 +372,4 @@ DELIMITER ;
 
 ## Diagrama de Flujo de Datos
 
-```
-┌──────────────┐
-│   Cliente    │
-│ (Frontend)   │
-└──────┬───────┘
-       │ POST /api/auth/login
-       │ { email, password }
-       ▼
-┌──────────────────────────────────┐
-│   Backend - Auth Controller      │
-└──────┬───────────────────────────┘
-       │
-       ▼
-┌──────────────────────────────────┐
-│  1. Query: rate_limiting         │
-│     WHERE identificador = email  │
-│     OR identificador = ip        │
-└──────┬───────────────────────────┘
-       │
-       ├─► SI BLOQUEADO ──► HTTP 429 (Too Many Requests)
-       │
-       ▼ NO BLOQUEADO
-┌──────────────────────────────────┐
-│  2. Query: usuarios              │
-│     WHERE email = ?              │
-│     AND estado = 'activo'        │
-└──────┬───────────────────────────┘
-       │
-       ├─► NO EXISTE ──┐
-       │               │
-       ▼ EXISTE        │
-┌──────────────────────┼───────────┐
-│  3. bcrypt.compare() │           │
-│     password vs hash │           │
-└──────┬───────────────┘           │
-       │                           │
-       ├─► NO COINCIDE ────────────┤
-       │                           │
-       ▼ COINCIDE                  │
-┌──────────────────────────────────┤
-│  4. Query: roles + permisos      │
-│     JOIN usuario_roles           │
-│     JOIN rol_permisos            │
-└──────┬───────────────────────────┘
-       │                           │
-       ▼                           │
-┌──────────────────────────────────┤
-│  5. Generate JWT                 │
-│     Include: id, roles, permisos │
-└──────┬───────────────────────────┘
-       │                           │
-       ▼                           │
-┌──────────────────────────────────┤
-│  6. INSERT: sesiones             │
-└──────┬───────────────────────────┘
-       │                           │
-       ▼                           │
-┌──────────────────────────────────┤
-│  7. INSERT: logs_autenticacion   │
-│     evento='login', resultado=   │
-│     'exito'                      │
-└──────┬───────────────────────────┤
-       │                           │
-       ▼                           ▼
-┌──────────────────┐   ┌────────────────────┐
-│  HTTP 200 OK     │   │  Incrementar       │
-│  { token, user } │   │  rate_limiting     │
-└──────────────────┘   │  INSERT log_auth   │
-                       │  (failed_login)    │
-                       │  HTTP 401          │
-                       └────────────────────┘
-```
+![Arquitectura-Servicios](Pregunta_4.png)

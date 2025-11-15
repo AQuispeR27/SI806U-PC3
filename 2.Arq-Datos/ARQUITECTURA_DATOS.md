@@ -2,194 +2,7 @@
 
 ## Diagrama Entidad-Relación (ERD)
 
-```
-┌─────────────────────────┐
-│      USUARIOS           │
-├─────────────────────────┤
-│ PK: id                  │
-│     email               │◄──────┐
-│     password_hash       │       │
-│     nombre              │       │
-│     apellido            │       │
-│     telefono            │       │
-│     fecha_nacimiento    │       │
-│     estado              │       │
-│     verificado          │       │
-│     fecha_creacion      │       │
-│     fecha_actualizacion │       │
-└─────────────────────────┘       │
-            │                     │
-            │ 1:N                 │
-            │                     │
-┌───────────▼─────────────┐       │
-│    USUARIO_ROLES        │       │
-├─────────────────────────┤       │
-│ PK: id                  │       │
-│ FK: usuario_id          │       │
-│ FK: rol_id              │       │
-│     fecha_asignacion    │       │
-└─────────────────────────┘       │
-            │                     │
-            │ N:1                 │
-            │                     │
-┌───────────▼─────────────┐       │
-│       ROLES             │       │
-├─────────────────────────┤       │
-│ PK: id                  │       │
-│     nombre              │       │
-│     descripcion         │       │
-│     fecha_creacion      │       │
-└─────────────────────────┘       │
-            │                     │
-            │ 1:N                 │
-            │                     │
-┌───────────▼─────────────┐       │
-│    ROL_PERMISOS         │       │
-├─────────────────────────┤       │
-│ PK: id                  │       │
-│ FK: rol_id              │       │
-│ FK: permiso_id          │       │
-└─────────────────────────┘       │
-            │                     │
-            │ N:1                 │
-            │                     │
-┌───────────▼─────────────┐       │
-│      PERMISOS           │       │
-├─────────────────────────┤       │
-│ PK: id                  │       │
-│     nombre              │       │
-│     descripcion         │       │
-│     recurso             │       │
-│     accion              │       │
-└─────────────────────────┘       │
-                                  │
-                                  │
-┌─────────────────────────┐       │
-│      SESIONES           │       │
-├─────────────────────────┤       │
-│ PK: id                  │       │
-│ FK: usuario_id          │───────┘
-│     token               │
-│     refresh_token       │
-│     ip_address          │
-│     user_agent          │
-│     dispositivo_tipo    │
-│     fecha_inicio        │
-│     fecha_expiracion    │
-│     activa              │
-└─────────────────────────┘
-            │
-            │ 1:1 (mismo usuario_id)
-            │
-┌───────────▼─────────────┐
-│  LOGS_AUTENTICACION     │
-├─────────────────────────┤
-│ PK: id                  │
-│ FK: usuario_id          │
-│     evento              │
-│     resultado           │
-│     ip_address          │
-│     user_agent          │
-│     ubicacion           │
-│     fecha_hora          │
-│     detalles            │
-└─────────────────────────┘
-
-
-┌─────────────────────────┐
-│    RATE_LIMITING        │
-├─────────────────────────┤
-│ PK: id                  │
-│     identificador       │
-│     tipo                │
-│     intentos            │
-│     ventana_inicio      │
-│     bloqueado_hasta     │
-└─────────────────────────┘
-
-
-┌─────────────────────────┐
-│      CLIENTES           │
-├─────────────────────────┤
-│ PK: id                  │
-│ FK: usuario_id          │
-│     tipo_cliente        │
-│     documento_tipo      │
-│     documento_numero    │
-│     razon_social        │
-│     direccion           │
-│     ciudad              │
-│     pais                │
-│     fecha_registro      │
-└─────────────────────────┘
-            │
-            │ 1:N
-            │
-┌───────────▼─────────────┐
-│   METODOS_PAGO          │
-├─────────────────────────┤
-│ PK: id                  │
-│ FK: cliente_id          │
-│     tipo                │
-│     proveedor           │
-│     ultimos_4_digitos   │
-│     fecha_expiracion    │
-│     es_principal        │
-│     activo              │
-│     fecha_agregado      │
-└─────────────────────────┘
-
-
-┌─────────────────────────┐
-│    TRANSACCIONES        │
-├─────────────────────────┤
-│ PK: id                  │
-│ FK: cliente_id          │
-│ FK: metodo_pago_id      │
-│     monto               │
-│     moneda              │
-│     estado              │
-│     tipo_transaccion    │
-│     referencia          │
-│     descripcion         │
-│     fee                 │
-│     fecha_transaccion   │
-│     fecha_procesado     │
-└─────────────────────────┘
-
-
-┌─────────────────────────┐
-│      COMERCIOS          │
-├─────────────────────────┤
-│ PK: id                  │
-│ FK: usuario_id          │
-│     nombre_comercial    │
-│     ruc                 │
-│     razon_social        │
-│     categoria           │
-│     url_webhook         │
-│     api_key             │
-│     api_secret          │
-│     activo              │
-│     fecha_registro      │
-└─────────────────────────┘
-
-
-┌─────────────────────────┐
-│    NOTIFICACIONES       │
-├─────────────────────────┤
-│ PK: id                  │
-│ FK: usuario_id          │
-│     tipo                │
-│     titulo              │
-│     mensaje             │
-│     leida               │
-│     fecha_envio         │
-│     canal               │
-└─────────────────────────┘
-```
-
----
+![Arquitectura-Datos](diagram-export-15-11-2025-16_45_49.png)
 
 ## Definición Detallada de Tablas
 
@@ -324,26 +137,7 @@
 - INDEX idx_ip_fecha (ip_address, fecha_hora)
 
 ---
-
-### 8. RATE_LIMITING
-**Propósito:** Control de intentos de login (prevenir fuerza bruta).
-
-| Campo | Tipo | Restricciones | Descripción |
-|-------|------|---------------|-------------|
-| id | BIGINT | PK, AUTO_INCREMENT | Identificador único |
-| identificador | VARCHAR(255) | NOT NULL | IP o email |
-| tipo | ENUM | 'ip', 'usuario' | Tipo de limitación |
-| intentos | INT | DEFAULT 0 | Cantidad de intentos |
-| ventana_inicio | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Inicio de la ventana |
-| bloqueado_hasta | TIMESTAMP | NULL | Hasta cuándo está bloqueado |
-
-**Índices:**
-- PRIMARY KEY (id)
-- UNIQUE INDEX idx_identificador_tipo (identificador, tipo)
-
----
-
-### 9. CLIENTES
+### 8. CLIENTES
 **Propósito:** Información específica de clientes.
 
 | Campo | Tipo | Restricciones | Descripción |
@@ -361,7 +155,7 @@
 
 ---
 
-### 10. METODOS_PAGO
+### 9. METODOS_PAGO
 **Propósito:** Métodos de pago asociados a clientes.
 
 | Campo | Tipo | Restricciones | Descripción |
@@ -378,7 +172,7 @@
 
 ---
 
-### 11. TRANSACCIONES
+### 10. TRANSACCIONES
 **Propósito:** Registro de todas las transacciones.
 
 | Campo | Tipo | Restricciones | Descripción |
@@ -398,7 +192,7 @@
 
 ---
 
-### 12. COMERCIOS
+### 11. COMERCIOS
 **Propósito:** Información de comercios que usan Culqui.
 
 | Campo | Tipo | Restricciones | Descripción |
@@ -417,7 +211,7 @@
 
 ---
 
-### 13. NOTIFICACIONES
+### 12. NOTIFICACIONES
 **Propósito:** Sistema de notificaciones para usuarios.
 
 | Campo | Tipo | Restricciones | Descripción |
