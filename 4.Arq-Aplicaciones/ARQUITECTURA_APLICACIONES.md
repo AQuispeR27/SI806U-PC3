@@ -2,7 +2,7 @@
 
 ## Visión General
 
-![Arquitectura-Aplicaciones](Pregunta_4.png)
+![Arquitectura-Aplicaciones](Pregunta5.png)
 
 ## FRONTEND
 
