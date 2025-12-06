@@ -1,0 +1,155 @@
+version: '3.8'
+
+# ============================================
+# Docker Compose - PRODUCCIÓN
+# Sistema de Login Culqui
+# ============================================
+
+services:
+  # ============================================
+  # Base de Datos MySQL
+  # ============================================
+  mysql:
+    image: mysql:8.0
+    container_name: culqui-mysql-prod
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data_prod:/var/lib/mysql
+      - ./2-arquitectura-datos/schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backups:/backups
+    networks:
+      - culqui-network-prod
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # No exponemos el puerto en producción (solo acceso interno)
+
+  # ============================================
+  # Backend API
+  # ============================================
+  backend:
+    build:
+      context: ./5-pagina-web-login/backend
+      dockerfile: Dockerfile
+    image: culqui-backend:${VERSION:-latest}
+    container_name: culqui-backend-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-5}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - culqui-network-prod
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    # Limitaciones de recursos
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ============================================
+  # Frontend React + NGINX
+  # ============================================
+  frontend:
+    build:
+      context: ./5-pagina-web-login/frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL}
+    image: culqui-frontend:${VERSION:-latest}
+    container_name: culqui-frontend-prod
+    restart: always
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - culqui-network-prod
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # Limitaciones de recursos
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ============================================
+  # NGINX Reverse Proxy (Opcional)
+  # ============================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: culqui-nginx-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - culqui-network-prod
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# ============================================
+# Redes
+# ============================================
+networks:
+  culqui-network-prod:
+    driver: bridge
+    name: culqui-network-prod
+
+# ============================================
+# Volúmenes
+# ============================================
+volumes:
+  mysql_data_prod:
+    name: culqui-mysql-data-prod
+  nginx_cache:
+    name: culqui-nginx-cache

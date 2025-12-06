@@ -96,7 +96,7 @@ CREATE DATABASE culqui_db;
 USE culqui_db;
 
 # Ejecutar el schema
-source ../../2-arquitectura-datos/schema.sql
+source ../../2.Arq-Datos/schema.sql
 ```
 
 ### 2. Configurar el Backend
@@ -181,7 +181,7 @@ El frontend estará corriendo en `http://localhost:3000`
 -- Insertar usuario de prueba
 INSERT INTO usuarios (email, password_hash, nombre, apellido, estado, verificado)
 VALUES (
-  'test@culqui.com',
+  ' ',
   '$2a$10$YourBcryptHashHere',  -- Password: 'test123'
   'Usuario',
   'Prueba',
