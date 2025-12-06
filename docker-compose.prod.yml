@@ -37,7 +37,7 @@ services:
   # ============================================
   backend:
     build:
-      context: ./5-pagina-web-login/backend
+      context: ./5.main/backend
       dockerfile: Dockerfile
     image: culqui-backend:${VERSION:-latest}
     container_name: culqui-backend-prod
@@ -83,7 +83,7 @@ services:
   # ============================================
   frontend:
     build:
-      context: ./5-pagina-web-login/frontend
+      context: ./5.main/frontend
       dockerfile: Dockerfile
       args:
         REACT_APP_API_URL: ${REACT_APP_API_URL}
